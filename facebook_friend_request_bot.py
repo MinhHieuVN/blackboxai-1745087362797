@@ -1,7 +1,7 @@
 """
 Facebook Friend Request Bot using Selenium
 
-This script automates sending friend requests on Facebook.
+This script automates sending friend requests on Facebook's friend suggestion section.
 
 Requirements:
 - Python 3.x
@@ -10,13 +10,11 @@ Requirements:
 - User Facebook credentials
 
 Usage:
-- Update the TARGET_PROFILES list with Facebook profile URLs to send friend requests to.
 - Run the script and enter your Facebook email and password when prompted.
 
 Disclaimer:
 Automating interactions on Facebook may violate Facebook's terms of service.
 Use this script responsibly and at your own risk.
-
 """
 
 from selenium import webdriver
@@ -28,11 +26,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
 import time
 import getpass
-
-# List of Facebook profile URLs to send friend requests to
-TARGET_PROFILES = [
-    # Example: "https://www.facebook.com/zuck"
-]
 
 def login_facebook(driver, email, password):
     driver.get("https://www.facebook.com/login")
@@ -51,22 +44,38 @@ def login_facebook(driver, email, password):
         driver.quit()
         exit(1)
 
-def send_friend_request(driver, profile_url):
-    driver.get(profile_url)
+def send_friend_requests_in_suggestions(driver):
+    # Navigate to friend suggestions page
+    driver.get("https://www.facebook.com/friends/suggestions")
     wait = WebDriverWait(driver, 10)
+    time.sleep(5)  # Wait for the page to load fully
+
+    # Scroll down to load more suggestions
+    scroll_pause_time = 2
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    for _ in range(3):  # Scroll 3 times to load more suggestions
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(scroll_pause_time)
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+    # Find all Add Friend buttons in the suggestions
     try:
-        # Wait for the Add Friend button to be clickable
-        add_friend_button = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//div[@aria-label='Add Friend' or @aria-label='Add friend']")))
-        add_friend_button.click()
-        print(f"Friend request sent to {profile_url}")
-        time.sleep(2)  # Wait a bit after sending request
-    except TimeoutException:
-        print(f"Add Friend button not found or not clickable on {profile_url}")
-    except ElementClickInterceptedException:
-        print(f"Could not click Add Friend button on {profile_url} - it might be blocked or already sent.")
+        add_friend_buttons = driver.find_elements(By.XPATH, "//div[@aria-label='Add Friend' or @aria-label='Add friend']")
+        print(f"Found {len(add_friend_buttons)} friend suggestion(s) to send requests to.")
+        for button in add_friend_buttons:
+            try:
+                button.click()
+                print("Friend request sent.")
+                time.sleep(2)  # Wait between requests to avoid detection
+            except ElementClickInterceptedException:
+                print("Could not click Add Friend button - it might be blocked or already sent.")
+            except Exception as e:
+                print(f"Unexpected error when clicking Add Friend button: {e}")
     except Exception as e:
-        print(f"Unexpected error on {profile_url}: {e}")
+        print(f"Error finding Add Friend buttons: {e}")
 
 def main():
     print("Facebook Friend Request Bot")
@@ -80,8 +89,7 @@ def main():
 
     try:
         login_facebook(driver, email, password)
-        for profile in TARGET_PROFILES:
-            send_friend_request(driver, profile)
+        send_friend_requests_in_suggestions(driver)
     finally:
         print("Closing browser.")
         driver.quit()
